@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}AnnotationLens{% endblock %} | RAG Hallucination Analysis</title>
+  <meta name="description" content="AnnotationLens — RAG Hallucination Annotation Analysis Platform for ML research comparing RAGTruth, RAGTruth++ and LettuceDetect predictions." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="bi bi-layers-half"></i></div>
+      <div class="brand-text">
+        <span class="brand-name">AnnotationLens</span>
+        <span class="brand-sub">RAG Hallucination Platform</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a href="{{ url_for('upload') }}"
+         class="nav-item {% if request.endpoint == 'upload' %}active{% endif %}">
+        <i class="bi bi-cloud-upload"></i>
+        <span>Upload Data</span>
+      </a>
+      <a href="{{ url_for('dashboard') }}"
+         class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i>
+        <span>Dashboard</span>
+      </a>
+
+      <div class="nav-section-label">Analysis</div>
+      <a href="{{ url_for('explorer') }}"
+         class="nav-item {% if request.endpoint == 'explorer' %}active{% endif %}">
+        <i class="bi bi-search"></i>
+        <span>Response Explorer</span>
+      </a>
+      <a href="{{ url_for('comparison') }}"
+         class="nav-item {% if request.endpoint == 'comparison' %}active{% endif %}">
+        <i class="bi bi-layout-split"></i>
+        <span>Annotation Comparison</span>
+      </a>
+      <a href="{{ url_for('evaluation') }}"
+         class="nav-item {% if request.endpoint == 'evaluation' %}active{% endif %}">
+        <i class="bi bi-bar-chart-line"></i>
+        <span>Detector Evaluation</span>
+      </a>
+      <a href="{{ url_for('audit') }}"
+         class="nav-item {% if request.endpoint == 'audit' %}active{% endif %}">
+        <i class="bi bi-clipboard-check"></i>
+        <span>Audit Explorer</span>
+      </a>
+
+      <div class="nav-section-label">Info</div>
+      <a href="{{ url_for('about') }}"
+         class="nav-item {% if request.endpoint == 'about' %}active{% endif %}">
+        <i class="bi bi-info-circle"></i>
+        <span>About Research</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="status-chip" id="status-chip">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Checking…</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-content">
+    <header class="topbar">
+      <button class="topbar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+        <i class="bi bi-list"></i>
+      </button>
+      <div class="topbar-title">{% block page_title %}AnnotationLens{% endblock %}</div>
+      <div class="topbar-right">
+        <span class="badge-version">v1.0</span>
+      </div>
+    </header>
+
+    <div class="content-area">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block extra_scripts %}{% endblock %}
+
+</body>
+</html>

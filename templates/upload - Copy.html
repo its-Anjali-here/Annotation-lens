@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Upload Data{% endblock %}
+{% block page_title %}Upload Data{% endblock %}
+
+{% block content %}
+<div class="upload-page">
+  <div class="upload-hero">
+    <div class="upload-icon-wrap">
+      <i class="bi bi-database-add"></i>
+    </div>
+    <h1 class="upload-title">Load Project Files</h1>
+    <p class="upload-subtitle">
+      Upload your four required data files to begin analysis. All processing
+      happens locally — no data leaves your machine.
+    </p>
+  </div>
+
+  <form id="upload-form" novalidate>
+    <div class="file-grid">
+
+      <div class="file-card required" id="drop-messages">
+        <div class="file-card-icon"><i class="bi bi-table"></i></div>
+        <div class="file-card-body">
+          <div class="file-card-label">Messages CSV <span class="badge-req">Required</span></div>
+          <div class="file-card-hint">messages.csv — expanded assistant messages</div>
+          <div class="file-card-schema">
+            Required columns: message_id, source_id, source_dataset, source_dataset_id, role, content
+          </div>
+        </div>
+        <label class="file-pick-btn">
+          <i class="bi bi-folder2-open"></i> Choose File
+          <input type="file" name="messages_csv" id="messages_csv" accept=".csv" hidden />
+        </label>
+        <div class="file-chosen" id="messages_csv-name">No file chosen</div>
+      </div>
+
+      <div class="file-card required" id="drop-spans">
+        <div class="file-card-icon"><i class="bi bi-tag"></i></div>
+        <div class="file-card-body">
+          <div class="file-card-label">Hallucination Spans CSV <span class="badge-req">Required</span></div>
+          <div class="file-card-hint">hallucination_spans.csv — RAGTruth++ annotations</div>
+          <div class="file-card-schema">
+            Required columns: span_id, message_id, start, end, label
+          </div>
+        </div>
+        <label class="file-pick-btn">
+          <i class="bi bi-folder2-open"></i> Choose File
+          <input type="file" name="spans_csv" id="spans_csv" accept=".csv" hidden />
+        </label>
+        <div class="file-chosen" id="spans_csv-name">No file chosen</div>
+      </div>
+
+      <div class="file-card required" id="drop-preds">
+        <div class="file-card-icon"><i class="bi bi-cpu"></i></div>
+        <div class="file-card-body">
+          <div class="file-card-label">Detector Predictions CSV <span class="badge-req">Required</span></div>
+          <div class="file-card-hint">lettucedetect_predictions.csv</div>
+          <div class="file-card-schema">
+            Required columns: response_id, start, end
+          </div>
+        </div>
+        <label class="file-pick-btn">
+          <i class="bi bi-folder2-open"></i> Choose File
+          <input type="file" name="preds_csv" id="preds_csv" accept=".csv" hidden />
+        </label>
+        <div class="file-chosen" id="preds_csv-name">No file chosen</div>
+      </div>
+
+      <div class="file-card required" id="drop-ragtruth">
+        <div class="file-card-icon"><i class="bi bi-filetype-json"></i></div>
+        <div class="file-card-body">
+          <div class="file-card-label">RAGTruth Responses JSONL <span class="badge-req">Required</span></div>
+          <div class="file-card-hint">response.jsonl — original RAGTruth records</div>
+          <div class="file-card-schema">
+            Required fields per line: id (or response_id), response (or content), labels
+          </div>
+        </div>
+        <label class="file-pick-btn">
+          <i class="bi bi-folder2-open"></i> Choose File
+          <input type="file" name="ragtruth_jsonl" id="ragtruth_jsonl" accept=".jsonl,.json" hidden />
+        </label>
+        <div class="file-chosen" id="ragtruth_jsonl-name">No file chosen</div>
+      </div>
+
+      <div class="file-card optional" id="drop-audit">
+        <div class="file-card-icon"><i class="bi bi-clipboard-check"></i></div>
+        <div class="file-card-body">
+          <div class="file-card-label">Audit CSV <span class="badge-opt">Optional</span></div>
+          <div class="file-card-hint">manual_audit_notes.csv / disagreement_audit_30.csv / complete_audit_review.csv</div>
+          <div class="file-card-schema">
+            Recommended columns: response_id, category, finding, assessment
+          </div>
+        </div>
+        <label class="file-pick-btn secondary">
+          <i class="bi bi-folder2-open"></i> Choose File
+          <input type="file" name="audit_csv" id="audit_csv" accept=".csv" hidden />
+        </label>
+        <div class="file-chosen" id="audit_csv-name">No file chosen</div>
+      </div>
+
+    </div><!-- /file-grid -->
+
+    <div class="upload-actions">
+      <button type="submit" class="btn-upload" id="upload-btn">
+        <i class="bi bi-cloud-upload"></i>
+        Load &amp; Validate Files
+      </button>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="upload-progress" id="upload-progress" style="display:none">
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="progress-bar-fill"></div>
+      </div>
+      <div class="progress-label" id="progress-label">Parsing files…</div>
+    </div>
+
+    <!-- Result -->
+    <div id="upload-result"></div>
+
+  </form>
+
+  {% if loaded %}
+  <div class="already-loaded-banner">
+    <i class="bi bi-check-circle-fill"></i>
+    Data is already loaded. <a href="{{ url_for('dashboard') }}">Go to Dashboard →</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Show file name when selected
+["messages_csv","spans_csv","preds_csv","ragtruth_jsonl","audit_csv"].forEach(id => {
+  const inp = document.getElementById(id);
+  if (!inp) return;
+  inp.addEventListener("change", () => {
+    const label = document.getElementById(id + "-name");
+    label.textContent = inp.files[0] ? inp.files[0].name : "No file chosen";
+    label.classList.toggle("chosen", !!inp.files[0]);
+  });
+});
+
+// Submit
+document.getElementById("upload-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const required = ["messages_csv","spans_csv","preds_csv","ragtruth_jsonl"];
+  for (const key of required) {
+    const el = document.getElementById(key);
+    if (!el.files || !el.files[0]) {
+      showResult("error", `Please select the <strong>${key}</strong> file.`);
+      return;
+    }
+  }
+
+  const fd = new FormData(document.getElementById("upload-form"));
+  const btn = document.getElementById("upload-btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Processing…';
+
+  const prog = document.getElementById("upload-progress");
+  const fill = document.getElementById("progress-bar-fill");
+  const lbl  = document.getElementById("progress-label");
+  prog.style.display = "block";
+
+  // fake progress animation
+  let pct = 0;
+  const ticker = setInterval(() => {
+    pct = Math.min(pct + Math.random() * 12, 85);
+    fill.style.width = pct + "%";
+  }, 300);
+
+  try {
+    lbl.textContent = "Uploading and validating…";
+    const resp = await fetch("/upload", { method: "POST", body: fd });
+    clearInterval(ticker);
+    fill.style.width = "100%";
+
+    const data = await resp.json();
+    if (data.success) {
+      lbl.textContent = "Success! Redirecting…";
+      const s = data.stats;
+      let warn = "";
+      if (data.warnings && data.warnings.length) {
+        warn = `<div class="upload-warnings"><strong>Warnings (${data.warnings.length}):</strong><ul>${
+          data.warnings.map(w=>`<li>${escHtml(w)}</li>`).join("")
+        }</ul></div>`;
+      }
+      showResult("success",
+        `<strong>✓ Data loaded successfully!</strong><br/>
+         ${s.n_matched} matched responses · ${s.n_orig_spans} original spans · 
+         ${s.n_exp_spans} expanded spans · ${s.n_pred_spans} predictions
+         ${warn}`
+      );
+      setTimeout(() => { window.location.href = data.redirect; }, 2200);
+    } else {
+      prog.style.display = "none";
+      showResult("error", `<strong>Error:</strong> ${escHtml(data.error)}`);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Load & Validate Files';
+    }
+  } catch (err) {
+    clearInterval(ticker);
+    prog.style.display = "none";
+    showResult("error", "Network error: " + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Load & Validate Files';
+  }
+});
+
+function showResult(type, html) {
+  const el = document.getElementById("upload-result");
+  el.innerHTML = `<div class="upload-msg ${type}">${html}</div>`;
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+</script>
+{% endblock %}

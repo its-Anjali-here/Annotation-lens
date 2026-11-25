@@ -1,0 +1,42 @@
+span_id,message_id,start,end,label,reason
+sp_00001,msg_0002,203,244,Baseless,Demo annotation — synthetic span for illustration.
+sp_00002,msg_0002,163,183,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00003,msg_0002,26,54,Unverifiable,Additional span identified in re-annotation pass.
+sp_00004,msg_0003,273,308,Baseless,Demo annotation — synthetic span for illustration.
+sp_00005,msg_0003,81,179,Unverifiable,Demo annotation — synthetic span for illustration.
+sp_00006,msg_0003,110,175,Baseless,Additional span identified in re-annotation pass.
+sp_00007,msg_0004,0,41,Baseless,Demo annotation — synthetic span for illustration.
+sp_00008,msg_0007,261,316,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00009,msg_0008,32,111,Unverifiable,Demo annotation — synthetic span for illustration.
+sp_00010,msg_0009,18,45,Baseless,Demo annotation — synthetic span for illustration.
+sp_00011,msg_0009,99,134,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00012,msg_0009,181,266,Conflicting,Additional span identified in re-annotation pass.
+sp_00013,msg_0010,174,234,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00014,msg_0010,271,321,Unverifiable,Additional span identified in re-annotation pass.
+sp_00015,msg_0011,111,134,Baseless,Demo annotation — synthetic span for illustration.
+sp_00016,msg_0011,267,304,Baseless,Demo annotation — synthetic span for illustration.
+sp_00017,msg_0012,96,173,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00018,msg_0016,149,200,Conflicting,Additional span identified in re-annotation pass.
+sp_00019,msg_0017,191,271,Unverifiable,Demo annotation — synthetic span for illustration.
+sp_00020,msg_0017,272,327,Baseless,Demo annotation — synthetic span for illustration.
+sp_00021,msg_0017,69,137,Unverifiable,Additional span identified in re-annotation pass.
+sp_00022,msg_0018,77,141,Unverifiable,Additional span identified in re-annotation pass.
+sp_00023,msg_0019,27,90,Baseless,Additional span identified in re-annotation pass.
+sp_00024,msg_0020,194,245,Unverifiable,Demo annotation — synthetic span for illustration.
+sp_00025,msg_0020,164,262,Baseless,Demo annotation — synthetic span for illustration.
+sp_00026,msg_0020,302,373,Conflicting,Additional span identified in re-annotation pass.
+sp_00027,msg_0021,264,298,Baseless,Demo annotation — synthetic span for illustration.
+sp_00028,msg_0021,319,367,Unverifiable,Demo annotation — synthetic span for illustration.
+sp_00029,msg_0022,64,130,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00030,msg_0023,37,80,Baseless,Demo annotation — synthetic span for illustration.
+sp_00031,msg_0023,177,216,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00032,msg_0024,0,56,Unverifiable,Demo annotation — synthetic span for illustration.
+sp_00033,msg_0024,4,33,Unverifiable,Demo annotation — synthetic span for illustration.
+sp_00034,msg_0024,189,278,Conflicting,Additional span identified in re-annotation pass.
+sp_00035,msg_0027,64,114,Baseless,Demo annotation — synthetic span for illustration.
+sp_00036,msg_0027,276,348,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00037,msg_0027,0,63,Unverifiable,Additional span identified in re-annotation pass.
+sp_00038,msg_0028,271,314,Unverifiable,Demo annotation — synthetic span for illustration.
+sp_00039,msg_0030,255,308,Baseless,Demo annotation — synthetic span for illustration.
+sp_00040,msg_0030,102,136,Conflicting,Demo annotation — synthetic span for illustration.
+sp_00041,msg_0030,255,328,Conflicting,Additional span identified in re-annotation pass.

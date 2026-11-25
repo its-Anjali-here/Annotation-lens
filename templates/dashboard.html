@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Research Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-page">
+
+  <!-- Metric cards row -->
+  <div class="metric-grid" id="metric-grid">
+    <div class="metric-card" data-key="n_matched">
+      <div class="metric-icon blue"><i class="bi bi-diagram-3"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" id="m-matched">—</div>
+        <div class="metric-label">Matched Responses</div>
+      </div>
+    </div>
+    <div class="metric-card" data-key="n_orig_spans">
+      <div class="metric-icon amber"><i class="bi bi-tag-fill"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" id="m-orig-spans">—</div>
+        <div class="metric-label">RAGTruth Spans (Original)</div>
+      </div>
+    </div>
+    <div class="metric-card" data-key="n_exp_spans">
+      <div class="metric-icon red"><i class="bi bi-tags-fill"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" id="m-exp-spans">—</div>
+        <div class="metric-label">RAGTruth++ Spans (Expanded)</div>
+      </div>
+    </div>
+    <div class="metric-card" data-key="n_pred_spans">
+      <div class="metric-icon teal"><i class="bi bi-cpu-fill"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" id="m-pred-spans">—</div>
+        <div class="metric-label">Detector Predicted Spans</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category breakdown row -->
+  <div class="metric-grid four" id="cat-grid">
+    <div class="metric-card sm">
+      <div class="metric-icon purple"><i class="bi bi-intersect"></i></div>
+      <div class="metric-body">
+        <div class="metric-value sm" id="m-both">—</div>
+        <div class="metric-label">Spans in Both Datasets</div>
+      </div>
+    </div>
+    <div class="metric-card sm">
+      <div class="metric-icon red"><i class="bi bi-plus-circle-dotted"></i></div>
+      <div class="metric-body">
+        <div class="metric-value sm" id="m-only-exp">—</div>
+        <div class="metric-label">Only in RAGTruth++</div>
+      </div>
+    </div>
+    <div class="metric-card sm">
+      <div class="metric-icon amber"><i class="bi bi-dash-circle-dotted"></i></div>
+      <div class="metric-body">
+        <div class="metric-value sm" id="m-only-orig">—</div>
+        <div class="metric-label">Only in Original RAGTruth</div>
+      </div>
+    </div>
+    <div class="metric-card sm">
+      <div class="metric-icon gray"><i class="bi bi-circle-slash"></i></div>
+      <div class="metric-body">
+        <div class="metric-value sm" id="m-none">—</div>
+        <div class="metric-label">No Spans in Either</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts row 1 -->
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Response-level Annotation Categories</div>
+        <div class="chart-subtitle">Distribution of responses by annotation overlap pattern</div>
+      </div>
+      <div class="chart-body">
+        <canvas id="chart-categories" height="260"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Span Count Comparison</div>
+        <div class="chart-subtitle">Original RAGTruth vs RAGTruth++ total spans and predictions</div>
+      </div>
+      <div class="chart-body">
+        <canvas id="chart-spans" height="260"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts row 2 -->
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Detector Performance vs Reference Sets</div>
+        <div class="chart-subtitle">Character-level Precision / Recall / F1 (computed from loaded data)</div>
+      </div>
+      <div class="chart-body">
+        <canvas id="chart-metrics" height="260"></canvas>
+      </div>
+      <div class="chart-note">
+        <i class="bi bi-info-circle"></i>
+        Metrics measure agreement with reference annotations, not independently verified factual accuracy.
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Span Overlap Distribution</div>
+        <div class="chart-subtitle">Number of spans per response for each annotation set</div>
+      </div>
+      <div class="chart-body">
+        <canvas id="chart-dist" height="260"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const CHART_COLORS = {
+  blue:   "#3b82f6",
+  amber:  "#f59e0b",
+  red:    "#ef4444",
+  teal:   "#14b8a6",
+  purple: "#8b5cf6",
+  gray:   "#6b7280",
+};
+const CHART_DEFAULTS = {
+  plugins: { legend: { labels: { color: "#cbd5e1", font: { family: "Inter" } } } },
+  scales: {
+    x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.1)" } },
+    y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.1)" } },
+  }
+};
+
+async function loadDashboard() {
+  // Stats
+  const s = await fetch("/api/dashboard_stats").then(r=>r.json());
+  if (s.error) { console.warn(s.error); return; }
+
+  document.getElementById("m-matched").textContent    = s.n_matched ?? "—";
+  document.getElementById("m-orig-spans").textContent = s.n_orig_spans ?? "—";
+  document.getElementById("m-exp-spans").textContent  = s.n_exp_spans ?? "—";
+  document.getElementById("m-pred-spans").textContent = s.n_pred_spans ?? "—";
+  document.getElementById("m-both").textContent       = s.both ?? "—";
+  document.getElementById("m-only-exp").textContent   = s.only_exp ?? "—";
+  document.getElementById("m-only-orig").textContent  = s.only_orig ?? "—";
+  document.getElementById("m-none").textContent       = s.none ?? "—";
+
+  // Chart 1 – categories
+  new Chart(document.getElementById("chart-categories"), {
+    type: "bar",
+    data: {
+      labels: ["Both Datasets", "Only RAGTruth++", "Only Original", "Neither"],
+      datasets: [{
+        label: "Responses",
+        data: [s.both, s.only_exp, s.only_orig, s.none],
+        backgroundColor: [CHART_COLORS.purple, CHART_COLORS.red,
+                          CHART_COLORS.amber, CHART_COLORS.gray],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { legend: { display: false } },
+      scales: CHART_DEFAULTS.scales,
+    }
+  });
+
+  // Chart 2 – span totals
+  new Chart(document.getElementById("chart-spans"), {
+    type: "bar",
+    data: {
+      labels: ["Original RAGTruth", "RAGTruth++", "LettuceDetect Preds"],
+      datasets: [{
+        label: "Total Spans",
+        data: [s.n_orig_spans, s.n_exp_spans, s.n_pred_spans],
+        backgroundColor: [CHART_COLORS.amber, CHART_COLORS.red, CHART_COLORS.teal],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { legend: { display: false } },
+      scales: CHART_DEFAULTS.scales,
+    }
+  });
+
+  // Chart 3 – metrics (evaluate both)
+  const ev = await fetch("/api/evaluation", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ response_ids: "all", mode: "both" })
+  }).then(r=>r.json());
+
+  if (!ev.error) {
+    const origM = ev.orig || {};
+    const expM  = ev.exp  || {};
+    new Chart(document.getElementById("chart-metrics"), {
+      type: "bar",
+      data: {
+        labels: ["Precision", "Recall", "F1"],
+        datasets: [
+          {
+            label: "vs Original RAGTruth",
+            data: [origM.precision, origM.recall, origM.f1],
+            backgroundColor: CHART_COLORS.amber + "cc",
+            borderColor: CHART_COLORS.amber,
+            borderWidth: 2, borderRadius: 5,
+          },
+          {
+            label: "vs RAGTruth++",
+            data: [expM.precision, expM.recall, expM.f1],
+            backgroundColor: CHART_COLORS.red + "cc",
+            borderColor: CHART_COLORS.red,
+            borderWidth: 2, borderRadius: 5,
+          }
+        ]
+      },
+      options: {
+        ...CHART_DEFAULTS,
+        scales: {
+          ...CHART_DEFAULTS.scales,
+          y: { ...CHART_DEFAULTS.scales.y, min: 0, max: 1,
+               ticks: { ...CHART_DEFAULTS.scales.y.ticks, callback: v => v.toFixed(2) } }
+        }
+      }
+    });
+  }
+
+  // Chart 4 – distribution
+  const dist = await fetch("/api/span_distribution").then(r=>r.json());
+  if (!dist.error) {
+    new Chart(document.getElementById("chart-dist"), {
+      type: "line",
+      data: {
+        labels: dist.labels,
+        datasets: [
+          {
+            label: "Original RAGTruth",
+            data: dist.orig_counts,
+            borderColor: CHART_COLORS.amber,
+            backgroundColor: CHART_COLORS.amber + "22",
+            tension: 0.35, fill: true, pointRadius: 3,
+          },
+          {
+            label: "RAGTruth++",
+            data: dist.exp_counts,
+            borderColor: CHART_COLORS.red,
+            backgroundColor: CHART_COLORS.red + "22",
+            tension: 0.35, fill: true, pointRadius: 3,
+          }
+        ]
+      },
+      options: {
+        ...CHART_DEFAULTS,
+        scales: {
+          x: { ...CHART_DEFAULTS.scales.x,
+               title: { display: true, text: "Spans per Response", color: "#94a3b8" } },
+          y: { ...CHART_DEFAULTS.scales.y,
+               title: { display: true, text: "# Responses", color: "#94a3b8" } },
+        }
+      }
+    });
+  }
+}
+
+loadDashboard();
+</script>
+{% endblock %}

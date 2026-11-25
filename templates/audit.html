@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Audit Explorer{% endblock %}
+{% block page_title %}Audit Explorer{% endblock %}
+
+{% block content %}
+<div class="audit-page">
+
+{% if has_audit %}
+  <div class="audit-controls card-surface">
+    <div class="audit-filter-row">
+      <label class="ctrl-label" for="audit-cat-filter">Filter by Category</label>
+      <select id="audit-cat-filter" class="toolbar-select">
+        <option value="">All Categories</option>
+      </select>
+      <button class="btn-run" id="audit-filter-btn">
+        <i class="bi bi-funnel"></i> Apply Filter
+      </button>
+    </div>
+    <div class="audit-search-row">
+      <input type="text" id="audit-search" class="toolbar-input"
+             placeholder="Search response ID, finding, or assessment…" />
+    </div>
+  </div>
+
+  <div id="audit-loading" class="loading-state" style="display:none">
+    <div class="loading-spinner"></div><span>Loading audit records…</span>
+  </div>
+
+  <div id="audit-table-wrap" style="overflow-x:auto"></div>
+
+{% else %}
+  <div class="empty-state">
+    <i class="bi bi-clipboard-x"></i>
+    <p>No audit file was loaded.</p>
+    <p class="empty-hint">
+      Upload one of: <code>manual_audit_notes.csv</code>, <code>disagreement_audit_30.csv</code>,
+      or <code>complete_audit_review.csv</code> on the Upload page to enable this section.
+    </p>
+    <a href="{{ url_for('upload') }}" class="btn-run" style="margin-top:1rem">
+      <i class="bi bi-cloud-upload"></i> Go to Upload
+    </a>
+  </div>
+{% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if has_audit %}
+<script>
+let ALL_RECORDS = [];
+let ALL_CATS = [];
+
+async function loadAudit(category="") {
+  document.getElementById("audit-loading").style.display = "flex";
+  const url = `/api/audit${category ? "?category="+encodeURIComponent(category) : ""}`;
+  const data = await fetch(url).then(r=>r.json());
+  if (data.error) { alert(data.error); return; }
+  ALL_RECORDS = data.records;
+  ALL_CATS = data.categories;
+
+  // Populate category select
+  const sel = document.getElementById("audit-cat-filter");
+  sel.innerHTML = '<option value="">All Categories</option>' +
+    ALL_CATS.map(c => `<option value="${escHtml(c)}" ${c===category?'selected':''}>${escHtml(c)}</option>`).join("");
+
+  renderTable(ALL_RECORDS);
+  document.getElementById("audit-loading").style.display = "none";
+}
+
+function renderTable(records) {
+  const cols = records.length ? Object.keys(records[0]) : [];
+  if (!records.length) {
+    document.getElementById("audit-table-wrap").innerHTML =
+      '<div class="no-spans" style="padding:2rem">No records match the filter.</div>';
+    return;
+  }
+  const thead = `<tr>${cols.map(c=>`<th>${escHtml(c)}</th>`).join("")}</tr>`;
+  const tbody = records.map(r =>
+    `<tr>${cols.map(c=>`<td>${escHtml(String(r[c]??''))}</td>`).join("")}</tr>`
+  ).join("");
+  document.getElementById("audit-table-wrap").innerHTML =
+    `<table class="audit-table">${thead}<tbody>${tbody}</tbody></table>`;
+}
+
+document.getElementById("audit-filter-btn").addEventListener("click", () => {
+  const cat = document.getElementById("audit-cat-filter").value;
+  loadAudit(cat);
+});
+
+document.getElementById("audit-search").addEventListener("input", e => {
+  const q = e.target.value.toLowerCase();
+  const filtered = ALL_RECORDS.filter(r =>
+    Object.values(r).some(v => String(v).toLowerCase().includes(q))
+  );
+  renderTable(filtered);
+});
+
+loadAudit();
+
+function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+</script>
+{% endif %}
+{% endblock %}

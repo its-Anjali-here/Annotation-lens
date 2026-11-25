@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Detector Evaluation{% endblock %}
+{% block page_title %}Detector Evaluation{% endblock %}
+
+{% block content %}
+<div class="evaluation-page">
+
+  <div class="comparison-notice">
+    <i class="bi bi-info-circle-fill"></i>
+    These metrics measure <strong>character-level agreement</strong> between detector predictions and
+    reference annotation sets. They do not independently verify factual accuracy of the text.
+    The detector (LettuceDetect) is evaluated against pre-computed predictions — no live inference
+    is performed.
+  </div>
+
+  <!-- Controls -->
+  <div class="eval-controls card-surface">
+    <div class="eval-controls-row">
+      <div class="eval-ctrl-group">
+        <label class="ctrl-label">Evaluation Mode</label>
+        <div class="radio-group">
+          <label class="radio-opt">
+            <input type="radio" name="eval-mode" value="both" checked> Both Datasets
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="eval-mode" value="orig"> vs Original RAGTruth only
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="eval-mode" value="exp"> vs RAGTruth++ only
+          </label>
+        </div>
+      </div>
+
+      <div class="eval-ctrl-group">
+        <label class="ctrl-label">Response Selection</label>
+        <div class="radio-group">
+          <label class="radio-opt">
+            <input type="radio" name="resp-sel" value="all" checked> All matched responses
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="resp-sel" value="subset"> Select a subset
+          </label>
+        </div>
+      </div>
+
+      <button class="btn-run" id="run-eval-btn">
+        <i class="bi bi-play-fill"></i> Run Evaluation
+      </button>
+    </div>
+
+    <div id="subset-selector" style="display:none" class="subset-wrap">
+      <label class="ctrl-label">Select Response IDs (hold Ctrl/Cmd for multi-select)</label>
+      <select id="resp-multiselect" multiple class="multi-select">
+        {% for rid in response_ids %}
+        <option value="{{ rid }}">{{ rid }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div id="eval-loading" class="loading-state" style="display:none">
+    <div class="loading-spinner"></div><span>Computing metrics…</span>
+  </div>
+
+  <div id="eval-results" style="display:none">
+
+    <!-- Comparison table -->
+    <div class="eval-table-card card-surface">
+      <div class="eval-table-title">Evaluation Results — Side-by-Side Comparison</div>
+      <table class="eval-table" id="eval-summary-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th class="col-orig">vs Original RAGTruth</th>
+            <th class="col-exp">vs RAGTruth++</th>
+          </tr>
+        </thead>
+        <tbody id="eval-table-body">
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Precision / Recall / F1 Comparison</div>
+        <div class="chart-subtitle">Character-level micro evaluation</div>
+      </div>
+      <div class="chart-body">
+        <canvas id="eval-chart" height="280"></canvas>
+      </div>
+    </div>
+
+    <!-- Per-response table (collapsible) -->
+    <details class="per-resp-details card-surface">
+      <summary>Per-Response Breakdown</summary>
+      <div id="per-resp-table-wrap" style="overflow-x:auto;margin-top:1rem"></div>
+    </details>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let evalChart = null;
+
+// Toggle subset selector
+document.querySelectorAll('input[name="resp-sel"]').forEach(r => {
+  r.addEventListener("change", () => {
+    document.getElementById("subset-selector").style.display =
+      r.value === "subset" ? "block" : "none";
+  });
+});
+
+document.getElementById("run-eval-btn").addEventListener("click", async () => {
+  const mode = document.querySelector('input[name="eval-mode"]:checked').value;
+  const respSel = document.querySelector('input[name="resp-sel"]:checked').value;
+
+  let rids = "all";
+  if (respSel === "subset") {
+    const sel = document.getElementById("resp-multiselect");
+    rids = Array.from(sel.selectedOptions).map(o => o.value);
+    if (!rids.length) { alert("Please select at least one response."); return; }
+  }
+
+  document.getElementById("eval-loading").style.display = "flex";
+  document.getElementById("eval-results").style.display = "none";
+
+  try {
+    const data = await fetch("/api/evaluation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ response_ids: rids, mode }),
+    }).then(r => r.json());
+
+    if (data.error) { alert(data.error); return; }
+    renderEval(data, mode);
+    document.getElementById("eval-results").style.display = "block";
+  } catch (err) {
+    alert("Error: " + err.message);
+  } finally {
+    document.getElementById("eval-loading").style.display = "none";
+  }
+});
+
+function renderEval(data, mode) {
+  const origM = data.orig || null;
+  const expM  = data.exp  || null;
+
+  const fmtN = v => (v == null ? "N/A" : v.toLocaleString());
+  const fmtP = v => (v == null ? "N/A" : (v * 100).toFixed(2) + "%");
+
+  const rows = [
+    ["Responses Evaluated", fmtN(origM?.n_responses), fmtN(expM?.n_responses)],
+    ["True Positives (chars)",  fmtN(origM?.tp),  fmtN(expM?.tp)],
+    ["False Positives (chars)", fmtN(origM?.fp),  fmtN(expM?.fp)],
+    ["False Negatives (chars)", fmtN(origM?.fn),  fmtN(expM?.fn)],
+    ["True Negatives (chars)",  fmtN(origM?.tn),  fmtN(expM?.tn)],
+    ["Precision", fmtP(origM?.precision), fmtP(expM?.precision)],
+    ["Recall",    fmtP(origM?.recall),    fmtP(expM?.recall)],
+    ["F1 Score",  fmtP(origM?.f1),        fmtP(expM?.f1)],
+  ];
+
+  const tbody = document.getElementById("eval-table-body");
+  tbody.innerHTML = rows.map(([label, o, e]) => `
+    <tr>
+      <td class="metric-label-cell">${label}</td>
+      <td class="col-orig ${origM ? '' : 'dim'}">${o}</td>
+      <td class="col-exp  ${expM  ? '' : 'dim'}">${e}</td>
+    </tr>`).join("");
+
+  // Chart
+  const labels = ["Precision", "Recall", "F1"];
+  const datasets = [];
+  if (origM) datasets.push({
+    label: "vs Original RAGTruth",
+    data: [origM.precision, origM.recall, origM.f1],
+    backgroundColor: "#f59e0bcc", borderColor: "#f59e0b",
+    borderWidth: 2, borderRadius: 5,
+  });
+  if (expM) datasets.push({
+    label: "vs RAGTruth++",
+    data: [expM.precision, expM.recall, expM.f1],
+    backgroundColor: "#ef4444cc", borderColor: "#ef4444",
+    borderWidth: 2, borderRadius: 5,
+  });
+
+  if (evalChart) evalChart.destroy();
+  evalChart = new Chart(document.getElementById("eval-chart"), {
+    type: "bar",
+    data: { labels, datasets },
+    options: {
+      plugins: { legend: { labels: { color: "#cbd5e1", font: { family: "Inter" } } } },
+      scales: {
+        x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.1)" } },
+        y: { min: 0, max: 1, ticks: { color: "#94a3b8", callback: v => v.toFixed(2) },
+             grid: { color: "rgba(148,163,184,0.1)" } }
+      }
+    }
+  });
+
+  // Per-response table
+  const perRows = origM?.per_response || expM?.per_response || [];
+  if (perRows.length) {
+    const useOrig = !!origM;
+    const useExp  = !!expM;
+    const origMap = {};
+    const expMap  = {};
+    (origM?.per_response||[]).forEach(r => origMap[r.response_id] = r);
+    (expM?.per_response||[]).forEach(r =>  expMap[r.response_id] = r);
+    const allIds = [...new Set([...Object.keys(origMap), ...Object.keys(expMap)])].sort();
+
+    const th = `<tr>
+      <th>Response ID</th>
+      ${useOrig?"<th>Orig P</th><th>Orig R</th><th>Orig F1</th>":""}
+      ${useExp?"<th>Exp P</th><th>Exp R</th><th>Exp F1</th>":""}
+    </tr>`;
+    const trs = allIds.map(rid => {
+      const o = origMap[rid]; const e = expMap[rid];
+      return `<tr>
+        <td style="font-family:var(--mono)">${escHtml(rid)}</td>
+        ${useOrig?`<td>${o?fmtP(o.precision):"—"}</td><td>${o?fmtP(o.recall):"—"}</td><td>${o?fmtP(o.f1):"—"}</td>`:""}
+        ${useExp?`<td>${e?fmtP(e.precision):"—"}</td><td>${e?fmtP(e.recall):"—"}</td><td>${e?fmtP(e.f1):"—"}</td>`:""}
+      </tr>`;
+    }).join("");
+    document.getElementById("per-resp-table-wrap").innerHTML =
+      `<table class="eval-table"><thead>${th}</thead><tbody>${trs}</tbody></table>`;
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+</script>
+{% endblock %}

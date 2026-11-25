@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Response Explorer{% endblock %}
+{% block page_title %}Response Explorer{% endblock %}
+
+{% block content %}
+<div class="explorer-page">
+
+  <div class="explorer-toolbar">
+    <div class="toolbar-left">
+      <label class="toolbar-label" for="response-select">Select Response ID</label>
+      <select id="response-select" class="toolbar-select">
+        <option value="">— choose a response —</option>
+        {% for rid in response_ids %}
+        <option value="{{ rid }}">{{ rid }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="layer-toggles" id="layer-toggles">
+      <button class="toggle-btn active" data-layer="orig" style="--accent:#f59e0b">
+        <span class="toggle-dot" style="background:#f59e0b"></span> Original RAGTruth
+      </button>
+      <button class="toggle-btn active" data-layer="exp" style="--accent:#ef4444">
+        <span class="toggle-dot" style="background:#ef4444"></span> RAGTruth++
+      </button>
+      <button class="toggle-btn active" data-layer="pred" style="--accent:#14b8a6">
+        <span class="toggle-dot" style="background:#14b8a6"></span> LettuceDetect
+      </button>
+    </div>
+  </div>
+
+  <div id="explorer-loading" class="loading-state" style="display:none">
+    <div class="loading-spinner"></div>
+    <span>Loading response…</span>
+  </div>
+
+  <div id="explorer-empty" class="empty-state">
+    <i class="bi bi-search"></i>
+    <p>Select a response ID above to begin exploration.</p>
+  </div>
+
+  <div id="explorer-content" style="display:none">
+
+    <div class="response-meta-bar">
+      <div class="meta-chip"><span class="meta-key">Response ID</span><span class="meta-val" id="meta-rid"></span></div>
+      <div class="meta-chip"><span class="meta-key">Task Type</span><span class="meta-val" id="meta-task"></span></div>
+      <div class="meta-chip"><span class="meta-key">Orig Spans</span><span class="meta-val" id="meta-orig-count" style="color:#f59e0b"></span></div>
+      <div class="meta-chip"><span class="meta-key">Exp Spans</span><span class="meta-val" id="meta-exp-count" style="color:#ef4444"></span></div>
+      <div class="meta-chip"><span class="meta-key">Pred Spans</span><span class="meta-val" id="meta-pred-count" style="color:#14b8a6"></span></div>
+    </div>
+
+    <div class="legend-bar">
+      <span class="legend-title">Legend:</span>
+      <span class="legend-item orig-legend">Original RAGTruth</span>
+      <span class="legend-item exp-legend">RAGTruth++</span>
+      <span class="legend-item pred-legend">LettuceDetect</span>
+      <span class="legend-item overlap-legend">Overlap</span>
+    </div>
+
+    <div class="response-text-card">
+      <div class="response-text-header">Assistant Response</div>
+      <div id="response-text-body" class="response-text-body"></div>
+    </div>
+
+    <!-- Span tables -->
+    <div class="span-tables-row">
+
+      <div class="span-table-card">
+        <div class="span-table-header" style="border-color:#f59e0b">
+          <i class="bi bi-tag-fill" style="color:#f59e0b"></i>
+          Original RAGTruth Spans
+          <span class="span-count" id="orig-span-count">0</span>
+        </div>
+        <div class="span-table-body" id="orig-span-table">
+          <div class="no-spans">No original RAGTruth spans for this response.</div>
+        </div>
+      </div>
+
+      <div class="span-table-card">
+        <div class="span-table-header" style="border-color:#ef4444">
+          <i class="bi bi-tags-fill" style="color:#ef4444"></i>
+          RAGTruth++ Spans
+          <span class="span-count" id="exp-span-count">0</span>
+        </div>
+        <div class="span-table-body" id="exp-span-table">
+          <div class="no-spans">No expanded spans for this response.</div>
+        </div>
+      </div>
+
+      <div class="span-table-card">
+        <div class="span-table-header" style="border-color:#14b8a6">
+          <i class="bi bi-cpu-fill" style="color:#14b8a6"></i>
+          LettuceDetect Predictions
+          <span class="span-count" id="pred-span-count">0</span>
+        </div>
+        <div class="span-table-body" id="pred-span-table">
+          <div class="no-spans">No predictions for this response.</div>
+        </div>
+      </div>
+
+    </div><!-- /span-tables-row -->
+
+  </div><!-- /explorer-content -->
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const LAYERS = { orig: true, exp: true, pred: true };
+let CURRENT_DATA = null;
+
+// Toggle buttons
+document.querySelectorAll(".toggle-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const layer = btn.dataset.layer;
+    LAYERS[layer] = !LAYERS[layer];
+    btn.classList.toggle("active", LAYERS[layer]);
+    if (CURRENT_DATA) renderHighlights(CURRENT_DATA);
+  });
+});
+
+document.getElementById("response-select").addEventListener("change", async (e) => {
+  const rid = e.target.value;
+  if (!rid) {
+    document.getElementById("explorer-content").style.display = "none";
+    document.getElementById("explorer-empty").style.display = "flex";
+    return;
+  }
+  document.getElementById("explorer-empty").style.display = "none";
+  document.getElementById("explorer-loading").style.display = "flex";
+  document.getElementById("explorer-content").style.display = "none";
+
+  try {
+    const data = await fetch(`/api/response/${encodeURIComponent(rid)}`).then(r=>r.json());
+    if (data.error) { alert(data.error); return; }
+    CURRENT_DATA = data;
+    renderResponse(data);
+  } catch(err) {
+    alert("Error loading response: " + err.message);
+  } finally {
+    document.getElementById("explorer-loading").style.display = "none";
+    document.getElementById("explorer-content").style.display = "block";
+  }
+});
+
+function renderResponse(data) {
+  document.getElementById("meta-rid").textContent   = data.original_id;
+  document.getElementById("meta-task").textContent  = data.task_type || "N/A";
+  document.getElementById("meta-orig-count").textContent = data.orig_spans.length;
+  document.getElementById("meta-exp-count").textContent  = data.exp_spans.length;
+  document.getElementById("meta-pred-count").textContent = data.pred_spans.length;
+
+  renderHighlights(data);
+  renderSpanTable("orig-span-table", "orig-span-count", data.orig_spans, "orig", data.response_text);
+  renderSpanTable("exp-span-table",  "exp-span-count",  data.exp_spans,  "exp",  data.response_text);
+  renderSpanTable("pred-span-table", "pred-span-count", data.pred_spans, "pred", data.response_text);
+}
+
+function renderHighlights(data) {
+  const text = data.response_text;
+  const len  = text.length;
+  // Build a per-character layer map
+  const layerMap = new Array(len).fill(0); // bitmask: 1=orig 2=exp 4=pred
+  if (LAYERS.orig) data.orig_spans.forEach(s => { for(let i=s.start;i<s.end&&i<len;i++) layerMap[i] |= 1; });
+  if (LAYERS.exp)  data.exp_spans.forEach(s  => { for(let i=s.start;i<s.end&&i<len;i++) layerMap[i] |= 2; });
+  if (LAYERS.pred) data.pred_spans.forEach(s => { for(let i=s.start;i<s.end&&i<len;i++) layerMap[i] |= 4; });
+
+  // Render runs of same bitmask
+  let html = "";
+  let i = 0;
+  while (i < len) {
+    const mask = layerMap[i];
+    let j = i + 1;
+    while (j < len && layerMap[j] === mask) j++;
+    const chunk = escHtml(text.slice(i, j));
+    if (mask === 0) {
+      html += chunk;
+    } else {
+      const cls = maskClass(mask);
+      const tip = buildTooltip(mask, text.slice(i, j), data, i, j);
+      html += `<mark class="${cls}" data-tip="${escAttr(tip)}">${chunk}</mark>`;
+    }
+    i = j;
+  }
+  document.getElementById("response-text-body").innerHTML = html;
+
+  // Tooltip hover
+  document.querySelectorAll("#response-text-body mark[data-tip]").forEach(el => {
+    el.addEventListener("mouseenter", showTip);
+    el.addEventListener("mouseleave", hideTip);
+  });
+}
+
+function maskClass(m) {
+  const bits = (m&1 ? 1:0) + (m&2 ? 1:0) + (m&4 ? 1:0);
+  if (bits > 1) return "hl-overlap";
+  if (m & 1) return "hl-orig";
+  if (m & 2) return "hl-exp";
+  return "hl-pred";
+}
+
+function buildTooltip(mask, text, data, start, end) {
+  const parts = [];
+  if (mask & 1) {
+    const sp = data.orig_spans.find(s => s.start <= start && s.end >= end);
+    parts.push(`[Original] ${sp ? sp.label : "Hallucination"}`);
+  }
+  if (mask & 2) {
+    const sp = data.exp_spans.find(s => s.start <= start && s.end >= end);
+    parts.push(`[RAGTruth++] ${sp ? sp.label : "Hallucination"}`);
+  }
+  if (mask & 4) {
+    const sp = data.pred_spans.find(s => s.start <= start && s.end >= end);
+    parts.push(`[Detector] ${sp ? sp.label : "Predicted"}`);
+  }
+  return parts.join(" | ");
+}
+
+// Simple tooltip
+const tipEl = document.createElement("div");
+tipEl.className = "span-tooltip";
+document.body.appendChild(tipEl);
+
+function showTip(e) {
+  tipEl.textContent = e.target.dataset.tip;
+  tipEl.style.display = "block";
+  moveTip(e);
+  e.target.addEventListener("mousemove", moveTip);
+}
+function moveTip(e) {
+  tipEl.style.left = (e.pageX + 12) + "px";
+  tipEl.style.top  = (e.pageY + 12) + "px";
+}
+function hideTip(e) {
+  tipEl.style.display = "none";
+  e.target.removeEventListener("mousemove", moveTip);
+}
+
+function renderSpanTable(tableId, countId, spans, layer, text) {
+  const el = document.getElementById(tableId);
+  document.getElementById(countId).textContent = spans.length;
+  if (!spans.length) {
+    el.innerHTML = `<div class="no-spans">No ${layer} spans for this response.</div>`;
+    return;
+  }
+  let rows = spans.map((s, i) => {
+    const spanText = text.slice(s.start, s.end);
+    const extra = s.score != null ? ` <span class="score-badge">${(s.score*100).toFixed(1)}%</span>` : "";
+    return `<div class="span-row ${layer}-row">
+      <div class="span-row-num">#${i+1}</div>
+      <div class="span-row-info">
+        <div class="span-row-label">${escHtml(s.label || "Hallucination")}${extra}</div>
+        <div class="span-row-offsets">[${s.start}–${s.end}]</div>
+        <div class="span-row-text">"${escHtml(spanText)}"</div>
+        ${s.reason ? `<div class="span-row-reason">${escHtml(s.reason)}</div>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+  el.innerHTML = rows;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function escAttr(s) {
+  return String(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+</script>
+{% endblock %}

@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Annotation Comparison{% endblock %}
+{% block page_title %}Annotation Comparison{% endblock %}
+
+{% block content %}
+<div class="comparison-page">
+
+  <div class="comparison-notice">
+    <i class="bi bi-info-circle-fill"></i>
+    Overlap is computed using character offsets and measures <strong>text-region agreement</strong>.
+    It does not establish factual correctness or semantic agreement between annotation sets.
+    Annotation disagreement does not automatically mean one dataset is incorrect.
+  </div>
+
+  <div class="explorer-toolbar">
+    <label class="toolbar-label" for="cmp-select">Select Response ID</label>
+    <select id="cmp-select" class="toolbar-select">
+      <option value="">— choose a response —</option>
+      {% for rid in response_ids %}
+      <option value="{{ rid }}">{{ rid }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div id="cmp-loading" class="loading-state" style="display:none">
+    <div class="loading-spinner"></div><span>Loading…</span>
+  </div>
+
+  <div id="cmp-empty" class="empty-state">
+    <i class="bi bi-layout-split"></i>
+    <p>Select a response to view annotation comparison.</p>
+  </div>
+
+  <div id="cmp-content" style="display:none">
+
+    <div class="response-meta-bar" id="cmp-meta-bar"></div>
+
+    <!-- Overlap summary cards -->
+    <div class="metric-grid four" id="overlap-cards">
+      <div class="metric-card sm">
+        <div class="metric-icon blue"><i class="bi bi-check2-circle"></i></div>
+        <div class="metric-body">
+          <div class="metric-value sm" id="cmp-exact">—</div>
+          <div class="metric-label">Exact Boundary Matches</div>
+        </div>
+      </div>
+      <div class="metric-card sm">
+        <div class="metric-icon purple"><i class="bi bi-intersect"></i></div>
+        <div class="metric-body">
+          <div class="metric-value sm" id="cmp-partial">—</div>
+          <div class="metric-label">Partial Overlaps</div>
+        </div>
+      </div>
+      <div class="metric-card sm">
+        <div class="metric-icon amber"><i class="bi bi-dash-circle"></i></div>
+        <div class="metric-body">
+          <div class="metric-value sm" id="cmp-orig-only">—</div>
+          <div class="metric-label">Only in Original</div>
+        </div>
+      </div>
+      <div class="metric-card sm">
+        <div class="metric-icon red"><i class="bi bi-plus-circle"></i></div>
+        <div class="metric-body">
+          <div class="metric-value sm" id="cmp-exp-only">—</div>
+          <div class="metric-label">Only in RAGTruth++</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend-bar">
+      <span class="legend-title">Legend:</span>
+      <span class="legend-item orig-legend">Original RAGTruth</span>
+      <span class="legend-item exp-legend">RAGTruth++</span>
+      <span class="legend-item pred-legend">LettuceDetect</span>
+      <span class="legend-item overlap-legend">Overlap</span>
+    </div>
+
+    <!-- Highlighted text panel -->
+    <div class="response-text-card">
+      <div class="response-text-header">Response Text — All Annotation Layers</div>
+      <div id="cmp-text-body" class="response-text-body"></div>
+    </div>
+
+    <!-- Comparison detail tables -->
+    <div class="cmp-tables">
+
+      <div class="cmp-table-section">
+        <h3 class="cmp-table-title"><i class="bi bi-check2-circle" style="color:#3b82f6"></i> Exact Boundary Matches</h3>
+        <div id="cmp-exact-table"></div>
+      </div>
+
+      <div class="cmp-table-section">
+        <h3 class="cmp-table-title"><i class="bi bi-intersect" style="color:#8b5cf6"></i> Partial Overlaps</h3>
+        <div id="cmp-partial-table"></div>
+      </div>
+
+      <div class="cmp-tables-row">
+        <div class="cmp-table-section half">
+          <h3 class="cmp-table-title"><i class="bi bi-tag-fill" style="color:#f59e0b"></i> Only in Original RAGTruth</h3>
+          <div id="cmp-orig-only-table"></div>
+        </div>
+        <div class="cmp-table-section half">
+          <h3 class="cmp-table-title"><i class="bi bi-tags-fill" style="color:#ef4444"></i> Only in RAGTruth++</h3>
+          <div id="cmp-exp-only-table"></div>
+        </div>
+      </div>
+
+    </div><!-- /cmp-tables -->
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let CMP_DATA = null;
+const tipEl = document.createElement("div");
+tipEl.className = "span-tooltip";
+document.body.appendChild(tipEl);
+
+document.getElementById("cmp-select").addEventListener("change", async e => {
+  const rid = e.target.value;
+  if (!rid) { reset(); return; }
+  document.getElementById("cmp-loading").style.display = "flex";
+  document.getElementById("cmp-empty").style.display = "none";
+  document.getElementById("cmp-content").style.display = "none";
+
+  try {
+    const data = await fetch(`/api/comparison/${encodeURIComponent(rid)}`).then(r=>r.json());
+    if (data.error) { alert(data.error); reset(); return; }
+    CMP_DATA = data;
+    renderComparison(data);
+  } catch(err) {
+    alert("Error: " + err.message); reset();
+  } finally {
+    document.getElementById("cmp-loading").style.display = "none";
+    document.getElementById("cmp-content").style.display = "block";
+  }
+});
+
+function reset() {
+  document.getElementById("cmp-empty").style.display = "flex";
+  document.getElementById("cmp-content").style.display = "none";
+  document.getElementById("cmp-loading").style.display = "none";
+}
+
+function renderComparison(d) {
+  const cmp = d.comparison;
+  // Meta bar
+  document.getElementById("cmp-meta-bar").innerHTML = `
+    <div class="meta-chip"><span class="meta-key">Response ID</span><span class="meta-val">${escHtml(d.original_id)}</span></div>
+    <div class="meta-chip"><span class="meta-key">Orig Spans</span><span class="meta-val" style="color:#f59e0b">${d.orig_spans.length}</span></div>
+    <div class="meta-chip"><span class="meta-key">Exp Spans</span><span class="meta-val" style="color:#ef4444">${d.exp_spans.length}</span></div>
+    <div class="meta-chip"><span class="meta-key">Pred Spans</span><span class="meta-val" style="color:#14b8a6">${d.pred_spans.length}</span></div>`;
+
+  // Overlap cards
+  document.getElementById("cmp-exact").textContent    = cmp.exact_matches.length;
+  document.getElementById("cmp-partial").textContent  = cmp.partial_overlaps.length;
+  document.getElementById("cmp-orig-only").textContent = cmp.orig_only.length;
+  document.getElementById("cmp-exp-only").textContent  = cmp.exp_only.length;
+
+  // Highlighted text
+  const text = d.response_text;
+  const len  = text.length;
+  const map  = new Array(len).fill(0);
+  d.orig_spans.forEach(s => { for(let i=s.start;i<Math.min(s.end,len);i++) map[i]|=1; });
+  d.exp_spans.forEach(s  => { for(let i=s.start;i<Math.min(s.end,len);i++) map[i]|=2; });
+  d.pred_spans.forEach(s => { for(let i=s.start;i<Math.min(s.end,len);i++) map[i]|=4; });
+  let html=""; let i=0;
+  while(i<len){
+    const m=map[i]; let j=i+1;
+    while(j<len&&map[j]===m) j++;
+    const chunk=escHtml(text.slice(i,j));
+    if(!m){ html+=chunk; }
+    else {
+      const cls=m>1&&(m&(m-1))?'hl-overlap':m===1?'hl-orig':m===2?'hl-exp':'hl-pred';
+      const tip=[];
+      if(m&1) tip.push("Original");if(m&2) tip.push("RAGTruth++");if(m&4) tip.push("Detector");
+      html+=`<mark class="${cls}" data-tip="${escAttr(tip.join(' + '))}">${chunk}</mark>`;
+    }
+    i=j;
+  }
+  const body = document.getElementById("cmp-text-body");
+  body.innerHTML = html;
+  body.querySelectorAll("mark[data-tip]").forEach(el => {
+    el.addEventListener("mouseenter", e => { tipEl.textContent=el.dataset.tip; tipEl.style.display="block"; });
+    el.addEventListener("mousemove",  e => { tipEl.style.left=(e.pageX+12)+"px"; tipEl.style.top=(e.pageY+12)+"px"; });
+    el.addEventListener("mouseleave", () => { tipEl.style.display="none"; });
+  });
+
+  // Detail tables
+  renderMatchTable("cmp-exact-table",   cmp.exact_matches,    text, "exact");
+  renderMatchTable("cmp-partial-table", cmp.partial_overlaps, text, "partial");
+  renderSingleTable("cmp-orig-only-table", cmp.orig_only, text, "orig");
+  renderSingleTable("cmp-exp-only-table",  cmp.exp_only,  text, "exp");
+}
+
+function renderMatchTable(id, pairs, text, type) {
+  const el = document.getElementById(id);
+  if (!pairs.length) { el.innerHTML='<div class="no-spans">None</div>'; return; }
+  el.innerHTML = pairs.map(({orig,exp},i) => `
+    <div class="cmp-pair-row">
+      <div class="cmp-pair-num">#${i+1}</div>
+      <div class="cmp-pair-side orig-row">
+        <div class="cmp-pair-head">Original [${orig.start}–${orig.end}]</div>
+        <div class="cmp-pair-label">${escHtml(orig.label||"")}</div>
+        <div class="cmp-pair-text">"${escHtml(text.slice(orig.start,orig.end))}"</div>
+      </div>
+      <div class="cmp-pair-arrow"><i class="bi bi-arrow-left-right"></i></div>
+      <div class="cmp-pair-side exp-row">
+        <div class="cmp-pair-head">RAGTruth++ [${exp.start}–${exp.end}]</div>
+        <div class="cmp-pair-label">${escHtml(exp.label||"")}</div>
+        <div class="cmp-pair-text">"${escHtml(text.slice(exp.start,exp.end))}"</div>
+      </div>
+    </div>`).join("");
+}
+
+function renderSingleTable(id, spans, text, cls) {
+  const el = document.getElementById(id);
+  if (!spans.length) { el.innerHTML='<div class="no-spans">None</div>'; return; }
+  el.innerHTML = spans.map((s,i) => `
+    <div class="span-row ${cls}-row">
+      <div class="span-row-num">#${i+1}</div>
+      <div class="span-row-info">
+        <div class="span-row-label">${escHtml(s.label||"Hallucination")}</div>
+        <div class="span-row-offsets">[${s.start}–${s.end}]</div>
+        <div class="span-row-text">"${escHtml(text.slice(s.start,s.end))}"</div>
+        ${s.reason ? `<div class="span-row-reason">${escHtml(s.reason)}</div>` : ""}
+      </div>
+    </div>`).join("");
+}
+
+function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function escAttr(s){ return String(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+</script>
+{% endblock %}

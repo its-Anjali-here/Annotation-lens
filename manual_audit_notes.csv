@@ -1,0 +1,11 @@
+response_id,category,finding,assessment,reason
+demo_resp_0022,Ambiguous,Demo audit finding — spans reviewed manually.,Disputed,Synthetic audit note generated for demonstration purposes.
+demo_resp_0007,Full Disagreement,Demo audit finding — spans reviewed manually.,Confirmed,Synthetic audit note generated for demonstration purposes.
+demo_resp_0013,Agreement,Demo audit finding — spans reviewed manually.,Borderline,Synthetic audit note generated for demonstration purposes.
+demo_resp_0011,Partial Disagreement,Demo audit finding — spans reviewed manually.,Disputed,Synthetic audit note generated for demonstration purposes.
+demo_resp_0009,Full Disagreement,Demo audit finding — spans reviewed manually.,Confirmed,Synthetic audit note generated for demonstration purposes.
+demo_resp_0003,Agreement,Demo audit finding — spans reviewed manually.,Disputed,Synthetic audit note generated for demonstration purposes.
+demo_resp_0026,Ambiguous,Demo audit finding — spans reviewed manually.,Borderline,Synthetic audit note generated for demonstration purposes.
+demo_resp_0012,Full Disagreement,Demo audit finding — spans reviewed manually.,Borderline,Synthetic audit note generated for demonstration purposes.
+demo_resp_0021,Agreement,Demo audit finding — spans reviewed manually.,Borderline,Synthetic audit note generated for demonstration purposes.
+demo_resp_0017,Partial Disagreement,Demo audit finding — spans reviewed manually.,Borderline,Synthetic audit note generated for demonstration purposes.
